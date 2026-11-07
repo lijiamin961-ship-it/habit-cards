@@ -1,81 +1,83 @@
-# 习惯卡 Habit Cards
+<div align="right"><b>English</b> | <a href="README.zh-CN.md">中文</a></div>
 
-按《掌控习惯》四大定律（提示、渴求、回应、奖赏）设计习惯卡并逐日打卡的单文件 Web 工具，内置「学习进度控制台」，支持 PWA 安装与可选的邮箱账号云同步。免费层的 Cloudflare Pages + D1 即可自托管。
+# Habit Cards · 习惯卡
 
-**在线示例：https://habit-cards.pages.dev**
+A single-file habit-tracking web app built around the four laws of *Atomic Habits* (cue, craving, response, reward) — with a built-in learning progress console, installable as a PWA, and optional email-based cloud sync. Self-hosts on the free tier of Cloudflare Pages + D1.
 
-## 特性
+**Live demo: https://habit-cards.pages.dev**（UI 语言目前为中文 / UI is currently in Chinese）
 
-- **单文件应用**：全部前端都在 `index.html` 里（习惯卡 + 学习进度控制台 + 说明书），无框架、无 npm 前端依赖、无外部请求
-- **三级结构**：封面三入口（培养 / 戒除 / 学习进度）→ 分区列表 → 卡片详情（四定律小卡 + 打卡面板 + 就地快速打卡动效）
-- **学习进度控制台**：有总量、有截止日的目标进度追踪——完成率 / 连续天数 / 预计完成日 / 周报复盘 / 打卡热力
-- **主题三档**：日间 / 夜间 / 跟随系统，全站语义色变量驱动
-- **PWA**：manifest + Service Worker（HTML network-first、静态 cache-first、`/api/*` 永不缓存），断网 100% 可用，可安装到手机桌面
-- **海报导出**：纯 Canvas 2D 两遍布局，逐卡导出分享图
-- **数据归你**：
-  - 未登录：数据只存在本机浏览器 localStorage
-  - 可选登录：邮箱注册后整快照云同步（换设备 / 清缓存不丢），冲突时给出双侧字节对比、由用户选择保留哪侧
-  - 密码使用 Web Crypto 标准 API 的 PBKDF2-SHA256（10 万次迭代）加盐哈希，恒时比较防时序侧信道，注册接口按来源限速，会话 token 90 天可吊销
-  - 同步失败静默重试，绝不弹窗打断使用
+## Features
 
-## 部署到你自己的 Cloudflare（免费层即可）
+- **Single-file app** — the entire frontend lives in one `index.html` (habit cards + learning progress console + user guide). No framework, no npm frontend dependencies, no external requests.
+- **Three-level structure** — cover with three entries (Build / Quit / Progress) → zone list → card detail (four-laws mini-cards + check-in panel + in-place quick check-in animations).
+- **Learning progress console** — track goals with a total volume and deadline: completion rate / streak / estimated finish date / weekly review / check-in heatmap.
+- **Three theme modes** — light / dark / follow-system, driven by semantic CSS variables across the whole app.
+- **PWA** — manifest + Service Worker (HTML network-first, static assets cache-first, `/api/*` never cached). Fully usable offline; installable to a phone home screen.
+- **Poster export** — pure Canvas 2D two-pass layout, exports a shareable poster per habit card.
+- **Your data, your rules**:
+  - Signed out: data lives only in your browser's localStorage.
+  - Optional sign-in: register with an email to sync a whole-snapshot to the cloud (survives device changes and cache clears). On conflict, both sides are compared byte-by-byte and you choose which one to keep.
+  - Passwords are hashed with PBKDF2-SHA256 via the standard Web Crypto API (100k iterations, per-user salt), compared in constant time; the register endpoint is rate-limited per source; session tokens last 90 days and can be revoked.
+  - Sync failures retry silently — never interrupts normal use.
+
+## Deploy to your own Cloudflare (free tier is enough)
 
 ```bash
-# 0. 复制配置模板并填入你自己的 D1 id
+# 0. Copy the config template
 cp wrangler.toml.example wrangler.toml
 
-# 1. 创建 D1 数据库，把输出的 database_id 填进 wrangler.toml
+# 1. Create the D1 database, then put the printed database_id into wrangler.toml
 npx wrangler d1 create habit-cards-db
 
-# 2. 初始化三张表（users / sessions / states）
+# 2. Initialize the three tables (users / sessions / states)
 npx wrangler d1 execute habit-cards-db --remote --file schema.sql
 
-# 3. 收集部署工件到 dist/
+# 3. Collect deployment artifacts into dist/
 node tools/build.js
 
-# 4. 登录 Cloudflare 并部署（项目名可自定）
+# 4. Log in to Cloudflare and deploy (project name is up to you)
 npx wrangler login
 npx wrangler pages deploy dist --project-name habit-cards
 ```
 
-本地开发（含 Functions 与本地 D1 模拟）：
+Local development (Functions + local D1 simulation included):
 
 ```bash
-cp wrangler.toml.example wrangler.toml   # 本地 dev 不校验 database_id，可保留占位
+cp wrangler.toml.example wrangler.toml   # local dev doesn't validate database_id; the placeholder works
 node tools/build.js
 npx wrangler pages dev --port 8790
 ```
 
-## 目录结构
+## Repository layout
 
 ```
-├── index.html            # 全部前端：习惯卡 + 学习进度控制台 + 说明书（单文件）
-├── functions/api/        # Cloudflare Pages Functions（云同步后端）
-│   ├── _lib.js           #   JSON 响应 / 随机数 / PBKDF2 / 恒时比较 / 会话鉴权 / 注册限速
-│   ├── register.js       #   POST /api/register（自动登录，返回 90 天 token）
+├── index.html            # The whole frontend: habit cards + progress console + guide (single file)
+├── functions/api/        # Cloudflare Pages Functions (cloud sync backend)
+│   ├── _lib.js           #   JSON responses / randomness / PBKDF2 / constant-time compare / auth / rate limit
+│   ├── register.js       #   POST /api/register (auto sign-in, returns a 90-day token)
 │   ├── login.js          #   POST /api/login
-│   ├── session.js        #   DELETE /api/session（吊销会话）
-│   └── state.js          #   GET/PUT /api/state（每用户一行快照，整体覆盖式存取）
-├── schema.sql            # D1 表结构：users / sessions / states
+│   ├── session.js        #   DELETE /api/session (revoke a session)
+│   └── state.js          #   GET/PUT /api/state (one snapshot row per user, overwrite-style)
+├── schema.sql            # D1 schema: users / sessions / states
 ├── manifest.json         # PWA manifest
 ├── sw.js                 # Service Worker
-├── icons/                # PWA 图标（192/512）
+├── icons/                # PWA icons (192/512)
 └── tools/
-    ├── build.js          # 收集 dist/ 部署工件
-    └── gen-icons.js      # 纯 Node zlib 手绘图标生成器（无第三方依赖）
+    ├── build.js          # Collects dist/ deployment artifacts
+    └── gen-icons.js      # Zero-dependency icon generator (pure Node zlib)
 ```
 
-## 数据与隐私
+## Data & privacy
 
-- 云同步快照按用户一行整存整取，只包含应用自身的业务键（习惯卡数据 / 学习进度数据 / 主题偏好），后端不做任何额外采集
-- 同步凭据与会话只存于浏览器 localStorage；退出登录即吊销服务端会话
-- 自部署时，所有数据都落在你自己的 D1 实例里
+- The sync snapshot is one row per user, containing only the app's own business keys (habit data / progress data / theme preference) — the backend collects nothing else.
+- Sync credentials and sessions live in browser localStorage only; signing out revokes the server-side session.
+- When self-hosted, all data lands in your own D1 instance.
 
-## 开发说明
+## Development notes
 
-- `index.html` 是构建完成的单文件产物：三个 `<script>` 块分别是云同步模块、学习进度控制台（Shadow DOM 模块）、习惯卡主脚本
-- 修改后运行 `node tools/build.js` 刷新 `dist/`，再部署
-- 主题切换 / 夜间档由 `--c-*` 语义色变量层驱动，新增界面请引用语义变量而不是写死颜色
+- `index.html` is the built single-file artifact: three `<script>` blocks — the cloud-sync module, the learning progress console (a Shadow DOM module), and the main habit-card script.
+- After editing, run `node tools/build.js` to refresh `dist/`, then deploy.
+- Theming (including dark mode) is driven by the `--c-*` semantic variable layer — new UI should reference semantic variables instead of hard-coded colors.
 
 ## License
 
