@@ -718,6 +718,490 @@ a,button{touch-action:manipulation}
 
 
 <script>
+/* ================= 双语支持：运行时文本覆盖层（zh 默认 / en 覆盖） =================
+   源码字符串保持中文原样；hc_lang=en 时按「精确字典 + 数值规则表」实时翻译文本节点
+   与 placeholder/aria-label/title 属性，MutationObserver 在每次渲染后自动补译。
+   说明书引文在源码中逐字保留（规格要求），英文档由字典给出对应英文表述。 */
+window.I18N = (function(){
+"use strict";
+var KEY = "hc_lang";
+var DOC = document;
+function lang(){
+  var v = null;
+  try{ v = localStorage.getItem(KEY); }catch(e){}
+  if(v !== "zh" && v !== "en") v = (navigator.language || "zh").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
+  return v;
+}
+function setLang(v){ try{ localStorage.setItem(KEY, v === "en" ? "en" : "zh"); }catch(e){} }
+
+/* ---------- 精确字典（节点原文 → English） ---------- */
+var TR = {
+/* 顶栏 */
+"主题":"Theme","说明":"Guide","导出":"Export","导入":"Import","云同步":"Sync",
+"主题·日间":"Theme · Light","主题·夜间":"Theme · Dark","主题·自动":"Theme · Auto",
+"习惯卡":"Habit Cards","按四大定律设计习惯，逐日打卡":"Design habits with the four laws, check in daily",
+"← 返回":"← Back","返回":"Back",
+/* 封面 */
+"＋ 养成":"＋ BUILD","－ 戒除":"－ QUIT","培养":"Build","戒除":"Quit",
+"让一个好习惯长出来":"Grow a good habit","让一个坏习惯退场":"Retire a bad habit",
+"学习进度":"Progress","有终点、有总量的进度追踪":"Goal tracking with an end and a total",
+"打卡":"Check in","打开":"Open","收起":"Collapse","新建卡":"New card",
+"今天的都完成了":"All done for today","今天都打完了":"All done for today",
+"今天还没开始":"Not started today","今天全打完了":"All done today",
+"还没开始":"Not started","还没有卡":"No cards yet","还没有目标":"No goals yet",
+"张":"cards","张卡":"cards","卡列表":"cards list",
+"培养，进入养成卡列表":"Build — open the build cards list",
+"戒除，进入戒除卡列表":"Quit — open the quit cards list",
+"学习进度，进入目标列表":"Progress — open the goals list",
+/* 详情页 */
+"习惯名称":"Habit name","身份":"Identity","替代动作":"Replacement action",
+"类型":"Type","主题色":"Theme color","环境":"Environment","周复盘":"Weekly review",
+"太简单":"Too easy","刚刚好":"Just right","太难":"Too hard",
+"编辑":"Edit","完成":"Done","存图":"Save image","删除这张卡":"Delete this card",
+"生成中…":"Generating…","已保存":"Saved","保存失败":"Save failed",
+"这张卡内容过长，请缩短某一栏后再试":"This card is too long — shorten one of the columns and try again",
+"待填写":"To fill in","还有未填写的字段":"Some fields are still empty",
+"未命名习惯":"Untitled habit","已打卡":"Checked in","未打卡":"Not checked in",
+"打卡记录":"Check-in log","关闭":"Close","正在记录 · ":"Now logging · ",
+"当 前 连 续":"C U R R E N T  S T R E A K","本周手记":"Notes for this week",
+"哪一天最难，为什么？下次同样处境怎么改？":"Which day was hardest, and why? What will you change next time the same situation hits?",
+"守":"✓",
+/* 四定律栏（TPL） */
+"让它显而易见":"Make it obvious","让它有吸引力":"Make it attractive","让它简便易行":"Make it easy","让它令人愉悦":"Make it satisfying",
+"让它无吸引力":"Make it unattractive","让它隐形":"Make it invisible","让它难以实行":"Make it difficult","让它令人厌恶":"Make it unsatisfying",
+"执行意向":"Implementation intention","习惯叠加":"Habit stacking","诱惑捆绑":"Temptation bundling","圈子":"Circle",
+"两分钟版":"Two-minute version","减阻力 / 预备环境":"Reduce friction / prime the scene","即时奖励":"Immediate reward","完成标记":"Completion ritual",
+"移除提示源":"Remove the cue","重述代价":"Restate the cost","加阻力":"Add friction","一次性决策 / 技术手段":"One-time decision / technical fix",
+"契约 · 目标":"Contract · goal","契约 · 惩罚":"Contract · penalty","契约 · 签字":"Contract · signatures",
+"我将于＿时间＿在＿地点＿做＿行为":"I will [behavior] at [time] in [location].",
+"做完＿旧习惯＿之后，我就＿新习惯＿":"After I [current habit], I will [new habit].",
+"做完＿就＿":"After I [habit I need], I will [habit I want].",
+"谁把这个行为当常态":"Who treats this behavior as normal?",
+"最小启动动作":"Smallest action to start",
+"提前准备好什么，让开始不费劲":"What to prepare in advance so starting takes no effort",
+"做完当场拿到什么":"What you get right after doing it",
+"用什么动作给今天画一个勾":"Which action puts a check on today",
+"什么在提醒你做这件事？怎么让它消失":"What reminds you to do this? How can it disappear?",
+"把好处说成代价：每做一次，我失去什么":"Reframe the benefit as a cost: what do I lose each time I do it?",
+"多加几步，让启动变麻烦":"Add steps so starting becomes a hassle",
+"今天做哪个决定，以后不再靠意志力":"Which decision today removes willpower from the equation",
+"我要守住什么":"What am I holding the line on",
+"违反的惩罚是什么，付给谁":"What is the penalty for breaking it, paid to whom",
+"我签字，问责人签字":"I sign; my accountability partner signs",
+"空出来的位置由什么占住？":"What takes over the freed-up slot?",
+"放在哪里、拿掉什么、放上什么":"Where it happens, what to remove, what to add",
+"让坏习惯发生在哪个空间被切断":"In which space the bad habit gets cut off",
+"我是「一个 ______ 的人」":"I am \u201csomeone who ______\u201d",
+/* 主题色名 */
+"朱红":"Vermilion","赭石":"Ochre","琥珀":"Amber","苔绿":"Moss","松青":"Pine",
+"靛蓝":"Indigo","石青":"Azurite","雾紫":"Wisteria","藕粉":"Lotus","墨":"Ink",
+/* 云同步面板 + 首访公告 */
+"未登录":"Signed out","已登录 ":"Signed in ","· 上次同步 ":" · last sync ",
+"本地改动约 3 秒后自动上传；断网时一切照旧，联网后自动补传。":"Local changes upload automatically after about 3 seconds. Offline everything works as usual; changes catch up once you\u2019re back online.",
+"立即同步":"Sync now","退出登录":"Sign out","登录":"Sign in","注册新账号":"Create account",
+"邮箱":"Email","密码（6–72 位）":"Password (6\u201372 characters)","至少 6 位":"At least 6 characters",
+"邮箱格式不正确":"Invalid email format","操作失败":"Operation failed",
+"登录成功，正在比对云端…":"Signed in \u2014 comparing with the cloud…",
+"注册成功，正在上传本地数据…":"Account created \u2014 uploading local data…",
+"已从云端恢复数据":"Restored from the cloud","已从云端恢复最新数据":"Restored the latest data from the cloud",
+"已上传云端":"Uploaded to the cloud","已退出登录，数据保留在本机":"Signed out. Data stays on this device.",
+"同步中…":"Syncing…",
+"未登录时数据仅保存在本机浏览器；注册登录后自动云同步，换设备不丢。":"Signed out, data is saved only in this browser. Sign up and it syncs to the cloud automatically \u2014 nothing lost when you switch devices.",
+"云端与本地都有改动，请选择保留哪一侧（另一侧会被覆盖，本地旧值自动备份）：":"Both cloud and local have changes. Pick which side to keep (the other side is overwritten; the replaced local value is backed up automatically):",
+"采用云端":"Use cloud","采用本地":"Use local",
+"已采用云端":"Using cloud data","已采用云端（被覆盖的本地旧值已备份）":"Using cloud data (the overwritten local value was backed up)",
+"已采用本地并上传云端":"Using local data \u2014 uploaded to the cloud",
+"本地 ":"Local ","B · 云端 ":"B \u00b7 cloud ","· 云端 ":"\u00b7 cloud ",
+"📢 公告 · 你的数据怎么保存":"📢 Notice · How your data is stored",
+"目前所有数据都保存在这台设备的浏览器里——清除浏览器数据或换一台设备，记录就找不回来了。":"Right now all data lives only in this browser \u2014 clear the browser data or switch devices and the records are gone.",
+"使用邮箱注册 / 登录后，数据会自动同步到云端：换手机、换电脑、清缓存都不怕丢。":"Sign up / sign in with an email and your data syncs to the cloud automatically \u2014 safe across phones, computers and cache clears.",
+"去登录 / 注册":"Sign in / Sign up","先逛逛":"Look around","以后不再提示":"Don\u2019t show again","公告":"Notice",
+/* 学习进度控制台 */
+"学习进度控制台":"Progress Console","学习进度控制台 · 习惯卡":"Progress Console \u00b7 Habit Cards",
+"养成卡 · 习惯卡":"Build Cards \u00b7 Habit Cards","戒除卡 · 习惯卡":"Quit Cards \u00b7 Habit Cards",
+"说明书 · 习惯卡":"Guide \u00b7 Habit Cards",
+"有终点、有总量的进度追踪 · 完成率 / 连续天数 / 预计完成日，一目了然":"Goal tracking with an end and a total \u00b7 completion rate, streak and estimated finish at a glance",
+"今日打卡":"Today","进度看板":"Board","周报复盘":"Weekly","我的":"Me",
+"工作台主导航":"Main navigation","学习进度控制台功能":"Progress console functions",
+"新建目标":"New goal","新建学习目标":"New learning goal",
+"进行中今日已打卡 ":"Checked in today ","累计记录 ":"Total ",
+"今日已打卡":"Checked in today","今日投入（分钟）":"Invested today (min)","进行中目标":"Active goals",
+"用时（分钟，可选）":"Time (min, optional)","日期":"Date",
+"最长连续":"Best streak","累计打卡（次）":"Total check-ins",
+"近 14 天投入时长":"Time invested \u00b7 last 14 days","近 35 天打卡热力":"Check-in heatmap \u00b7 last 35 days",
+"近 14 天各目标投入分钟数堆叠图":"Minutes invested per goal, last 14 days (stacked)",
+"完成率":"Completion rate","连续":"Streak","预计完成日":"Est. finish","预计 ":"Est. ",
+"已逾期":"Overdue","全部已完成":"All completed","今天要处理":"Needs attention today",
+"昨天没学 · 已滚入今日":"Missed yesterday \u00b7 rolled into today",
+"立即打卡":"Check in now","查看":"View","再记一笔":"Add another entry",
+"删除":"Delete","删除这条记录":"Delete this entry","确认删除？":"Delete?","确认？":"Sure?",
+"已删除该条记录":"Entry deleted","已补记":"Backfilled","补":"M","今日":"Today",
+"上周":"Last week","本周":"This week","今天":"Today","昨天":"Yesterday",
+"上一周":"Prev week","下一周":"Next week",
+"保持 Keep":"Keep","问题 Problem":"Problem","尝试 Try":"Try","下周预案":"Next-week plan",
+"· 做得好的，下周继续":"\u00b7 what worked \u2014 keep it next week","· 卡在哪了":"\u00b7 where you got stuck",
+"· 下周试试这样改":"\u00b7 try this next week","· 如果…我就…":"\u00b7 if\u2026 then\u2026",
+"保存复盘":"Save review","生成周报文本":"Generate report","一键复制周报":"Copy the report",
+"周报已复制，去粘贴分享吧":"Report copied \u2014 paste it anywhere you like","复盘已保存到本周":"Review saved to this week",
+"数据管理":"Data","清空全部数据":"Clear all data",
+"导出数据（JSON 文件）":"Export data (JSON file)","导入数据（JSON 文件）":"Import data (JSON file)",
+"关于你的数据":"About your data",
+"数据云端保存，多设备登录同一账号即可同步，不会因换设备或清缓存丢失。":"Data is saved in the cloud \u2014 sign in with the same account on any device to sync. Switching devices or clearing the cache loses nothing.",
+"未登录时数据会降级保存在本机浏览器，登录后自动同步到云端。":"Signed out, data falls back to this browser; it syncs to the cloud automatically once you sign in.",
+"装到手机桌面，天天用":"Put it on your phone\u2019s home screen",
+"用手机浏览器打开本页链接":"Open this page in a mobile browser",
+"点浏览器「分享」按钮":"Tap your browser\u2019s Share button",
+"选「添加到主屏幕」，桌面出现图标，点开即用":"Choose \u201cAdd to Home Screen\u201d \u2014 an icon appears; tap it to start",
+"目标名称":"Goal name","计量单位":"Unit","总量":"Total","截止日":"Deadline",
+"最容易拦住你的障碍（选填）":"The obstacle most likely to block you (optional)",
+"如果它出现，你就（选填）":"When it shows up, you will\u2026 (optional)",
+"配色":"Color","取消":"Cancel","保存目标":"Save goal","编辑目标":"Edit goal",
+"目标配色":"Goal color","难易度":"Difficulty","目录":"Contents",
+"例：背英语单词 / 读完《人类简史》":"e.g. Memorize 50 words a day / Finish Sapiens",
+"个 / 页 / 节 / 小时":"items / pages / sections / hours","例：2000":"e.g. 2000",
+"例：睡前一躺下就想刷手机":"e.g. I grab my phone the moment I lie down",
+"例：把书放在枕头上，先读 2 页再看手机":"e.g. Put the book on the pillow \u2014 read 2 pages before touching the phone",
+"例：单词连续 6 天没断":"e.g. The vocabulary streak lasted 6 days",
+"例：阅读总拖到睡前，一躺下就刷手机":"e.g. Reading keeps slipping to bedtime, phone first",
+"例：阅读改到午饭后 20 分钟":"e.g. Move reading to 20 minutes after lunch",
+"例：如果睡前想刷手机，我就先把书读 2 页":"e.g. If I want to scroll in bed, I read 2 pages first",
+/* 校验与提示（进度台） */
+"目标 ID 无效或重复":"Invalid or duplicate goal ID","记录 ID 无效或重复":"Invalid or duplicate entry ID",
+"记录关联或日期无效":"Invalid entry link or date","记录完成量无效":"Invalid completed amount",
+"记录用时无效":"Invalid time spent","目标名称或总量无效":"Invalid goal name or total",
+"目标日期无效":"Invalid goal date","目标配色无效":"Invalid goal color",
+"目标数据损坏":"Goal data corrupted","数据条数超出支持范围":"Data count out of supported range",
+"截止日不能早于今天":"Deadline cannot be before today","请填写目标名称":"Please enter a goal name",
+"请选择有效截止日":"Please pick a valid deadline","总量需为有效正数":"Total must be a positive number",
+"完成数量需为有效正数":"Completed amount must be a positive number","用时需为 0–1440 分钟":"Time spent must be 0\u20131440 minutes",
+"打卡记录损坏":"Check-in log corrupted",
+"将删除全部目标与打卡记录，且不可恢复。\n请输入「清空」二字确认：":"This deletes ALL goals and check-ins, irreversibly.\nType 清空 (clear) to confirm:",
+"已清空全部数据":"All data cleared","未输入「清空」，已取消":"Cancelled \u2014 confirmation not typed",
+"检测到异常数据，已保留原始副本并载入内置内容":"Unexpected data detected \u2014 the original copy was kept and built-in content loaded instead",
+"内置内容已更新":"Built-in content updated","已自动迁移旧版数据":"Legacy data migrated automatically",
+"已创建目标「":"Created goal \u201c","目标已更新":"Goal updated","已导入":"Imported",
+"已导出学习目标数据":"Goal data exported","已导入学习目标数据":"Goal data imported",
+"导入失败：":"Import failed: ","导入失败：文件格式不正确":"Import failed: wrong file format",
+"导入失败：文件读取错误":"Import failed: file read error","文件格式不正确":"Wrong file format",
+"复制失败，请手动选择复制":"Copy failed \u2014 please select and copy manually",
+"导入将覆盖当前全部卡片与记录，确定继续？":"Importing overwrites ALL current cards and records. Continue?",
+"已导出备份文件":"Backup file exported",
+"环境":"Environment","照亮桌面":"Light up the desk",
+/* 单位与星期 */
+"页":"pages","节":"sections","个":"units","题":"problems","篇":"articles","章":"chapters","小时":"hours",
+"分钟":"min","分钟）":" min)","分":"m","天":"days",
+"一":"Mo","二":"Tu","三":"We","四":"Th","五":"Fr","六":"Sa","日":"Su",
+/* 说明书 */
+"说明书":"Guide","说明书 · 习惯卡":"Guide \u00b7 Habit Cards",
+"这张卡为什么长这样，每一栏该写什么。":"Why the card is shaped this way, and what to write in each field.",
+"怎么用":"How to use","每一栏填什么":"What goes in each field","为什么这么设计":"Why it\u2019s designed this way","学习进度台教程":"Progress console tutorial",
+"这张卡不是日记，是模具。填一次，之后每天只做一件事——打勾。":"This card is not a diary \u2014 it\u2019s a mold. Fill it in once; after that there\u2019s only one thing to do each day: check the box.",
+"步骤一 · 先建一张卡":"Step 1 \u00b7 Create one card",
+"只建一张。同时开三张卡的人，最后一张都活不过两周。":"Create just one. People who start three cards at once rarely keep any past two weeks.",
+"在首页点「＋ 新建卡」，选「养成」或「戒除」，写一个动作名称。名称要写动作，不写愿望：「每天背 50 个单词」可以，「好好学英语」不行。":"On the home page tap \u201c＋ New card\u201d, choose Build or Quit, and name an action. Name the action, not the wish: \u201cmemorize 50 words a day\u201d works; \u201cget good at English\u201d does not.",
+"步骤二 · 把四栏填满，再开始打卡":"Step 2 \u00b7 Fill all four columns, then start checking in",
+"四栏是四个不同的着力点，缺哪一栏，习惯就从哪里断。填不满就先空着，卡片右上角那个空心圆点就是提醒你「这张还没设计完」。":"The four columns are four different leverage points \u2014 whichever one is missing is where the habit breaks. Leave them empty if you must; the hollow dot at the top-right of the card reminds you that this card isn\u2019t fully designed yet.",
+"没填满就先别打卡——打卡只是在验证设计，设计没做完，打卡只会记下失败。":"Don\u2019t check in before it\u2019s complete \u2014 checking in only verifies the design. With the design unfinished, check-ins just record failure.",
+"步骤三 · 每天点一格":"Step 3 \u00b7 Check one box a day",
+"点卡片进详情，按「打卡」，把今天那格点亮。养成卡填勾，戒除卡填「守」。":"Open a card\u2019s detail, tap Check in, and light up today\u2019s box. Build cards earn a check; quit cards earn a \u201cheld\u201d mark.",
+"步骤四 · 每周写一次复盘":"Step 4 \u00b7 Write a weekly review",
+"在卡片底部手写一段，只回答一个问题：这周哪一栏的实际执行，跟你当初写的不一样？":"At the bottom of the card, write a short note answering one question: which column actually played out this week differently from what you wrote?",
+"然后只改那一栏。不要重写整张卡。":"Then change only that column. Never rewrite the whole card.",
+"「每当我遇到这种情况，我都会试着提醒自己严格遵守一条简单的规则：绝不错过两次。」":"\u201cWhenever I run into a situation like this, I try to remind myself of one simple rule: never miss twice.\u201d",
+"「错过两次是一种新习惯的开始。」":"\u201cMissing twice is the start of a new habit.\u201d",
+"——《掌控习惯》第 16 章":"\u2014 Atomic Habits, ch. 16","——《掌控习惯》第 2 章":"\u2014 Atomic Habits, ch. 2",
+"——《掌控习惯》第 5 章":"\u2014 Atomic Habits, ch. 5","——《掌控习惯》第 13 章":"\u2014 Atomic Habits, ch. 13",
+"——《掌控习惯》第 6 章":"\u2014 Atomic Habits, ch. 6","——《掌控习惯》第 12 章":"\u2014 Atomic Habits, ch. 12",
+"——《掌控习惯》第 15 章":"\u2014 Atomic Habits, ch. 15","——《掌控习惯》第 7 章":"\u2014 Atomic Habits, ch. 7",
+"——《掌控习惯》第 14 章":"\u2014 Atomic Habits, ch. 14","——《掌控习惯》第 17 章":"\u2014 Atomic Habits, ch. 17",
+"——《掌控习惯》第 3 章":"\u2014 Atomic Habits, ch. 3","——《掌控习惯》第 1 章、第 11 章":"\u2014 Atomic Habits, ch. 1 & 11",
+"——《掌控习惯》第 19 章":"\u2014 Atomic Habits, ch. 19",
+"字段：习惯名称":"Field: Habit name",
+"怎么填：动作 + 频次 + 程度，具体到明天就能执行。":"How: action + frequency + scale \u2014 concrete enough to execute tomorrow.",
+"✓ 每天背 50 个单词":"\u2713 Memorize 50 words a day","× 好好学英语":"\u00d7 Get good at English",
+"字段：身份（卡片最上方的虚线框）":"Field: Identity (the dashed box at the top of the card)",
+"怎么填：用现在时写「我是一个 ______ 的人」，不要写「我想成为」。这一栏不是目标，是你要站的位置。":"How: write \u201cI am someone who ______\u201d in the present tense \u2014 not \u201cI want to become\u201d. This field is not a goal; it\u2019s the position you take.",
+"✓ 我是一个每天都会碰英语的人":"\u2713 I am someone who touches English every day","× 我想把英语学好":"\u00d7 I want to get good at English",
+"「你采取的每一个行动都是投票给了你想成为的那个人。」":"\u201cEvery action you take is a vote for the type of person you wish to become.\u201d",
+"字段：① 执行意向":"Field: \u2460 Implementation intention",
+"怎么填：把「何时何地做」写死，不留任何现场决定的空间。":"How: pin down when and where \u2014 leave no room for in-the-moment decisions.",
+"公式：我将于[时间]在[地点][行为]。":"Formula: I will [behavior] at [time] in [location].",
+"✓ 我将于早上 7:10 在宿舍书桌背 50 个单词":"\u2713 At 7:10 a.m., at my desk, I will memorize 50 words",
+"× 有空的时候背一下单词":"\u00d7 Memorize some words when free",
+"「执行意图的公式是：我将于[时间]在[地点][行为]。」":"\u201cThe formula for implementation intentions is: I will [behavior] at [time] in [location].\u201d",
+"「但是第三组中91%的人每周至少锻炼一次——比正常频率高一倍以上。」":"\u201cBut 91% of the third group exercised at least once per week \u2014 more than double their normal rate.\u201d",
+"字段：① 习惯叠加":"Field: \u2460 Habit stacking",
+"怎么填：挂在一个你已经在做、且不会忘的动作后面。锚点必须是稳定动作，不是「有空时」。":"How: attach it to an action you already do and won\u2019t forget. The anchor must be a stable action \u2014 not \u201cwhen I have time\u201d.",
+"公式：继[当前习惯]之后，我将[新习惯]。":"Formula: After [current habit], I will [new habit].",
+"✓ 继倒完第一杯水之后，我将打开单词 APP":"\u2713 After I pour my first glass of water, I will open the vocabulary app",
+"× 继我想起来之后，我将背单词":"\u00d7 After I remember, I will study vocabulary",
+"「习惯叠加的公式是：继[当前习惯]之后，我将[新习惯]。」":"\u201cHabit stacking is a formula: After [current habit], I will [new habit].\u201d",
+"字段：② 诱惑捆绑":"Field: \u2461 Temptation bundling",
+"怎么填：把「必须做」和「想做」绑在一起，顺序不能反——先必须，后想要。":"How: bundle \u201cneed to do\u201d with \u201cwant to do\u201d \u2014 in that order. Need first, want second.",
+"公式：继[我需要的习惯]之后，我将[我想要的习惯]。":"Formula: After [habit I need], I will [habit I want].",
+"✓ 继背完 50 个单词之后，我将听一首歌":"\u2713 After I finish my 50 words, I will listen to a song",
+"× 继听完一首歌之后，我将去背单词":"\u00d7 After the song, I will go do my words",
+"「2.继[我需要的习惯]之后，我将[我想要的习惯]。」":"\u201c2. After [habit I need], I will [habit I want].\u201d",
+"字段：② 圈子":"Field: \u2461 Circle",
+"怎么填：写下一个把这件事当常态的群体（社团、群、朋友）。不是为了监督，是为了让这件事看起来\"正常\"。":"How: name a group where this behavior is the norm (a club, a group chat, friends). Not for supervision \u2014 so the behavior looks \u201cnormal\u201d.",
+"字段：③ 两分钟版":"Field: \u2461 Two-minute version",
+"怎么填：把习惯缩小到两分钟内能做完的启动动作。它是引子，不是目标。":"How: shrink the habit to a starter action doable in two minutes. It\u2019s a gateway, not the goal.",
+"✓ 打开 APP，只背 1 个":"\u2713 Open the app and memorize just 1 word","× 今天先背 200 个":"\u00d7 Do 200 words first today",
+"「每当你努力要保持一个习惯时，你都可以采用两分钟规则。」":"\u201cWhenever you are trying to maintain a habit, you can employ the Two-Minute Rule.\u201d",
+"字段：③ 减阻力 / 预备环境":"Field: \u2461 Reduce friction / prime the scene",
+"怎么填：写两件事——你要把什么提前准备好、把什么从现场移走。写到具体位置。":"How: write two things \u2014 what to prepare in advance, and what to remove from the scene. Name exact locations.",
+"✓ 前一晚把词表停在要背的那一页；手机放床尾充电":"\u2713 Leave the word list open at the right page the night before; charge the phone at the foot of the bed",
+"× 减少干扰":"\u00d7 Reduce distractions",
+"「预备好你的环境，使未来的行动更容易。」":"\u201cPrepare your environment to make future actions easier.\u201d",
+"「人类行为遵循最省力法则。我们天然地倾向于付出最少工作量的选择。」":"\u201cHuman behavior follows the Law of Least Effort. We are naturally drawn to the option that requires the least work.\u201d",
+"字段：④ 即时奖励":"Field: \u2462 Immediate reward",
+"怎么填：做完当场就能拿到的东西，且与你想成为的人一致。不能是「攒够一个月再奖励」。":"How: something you get on the spot, aligned with the person you want to become. Not \u201creward myself in a month\u201d.",
+"「我们不只是在寻找满足感，我们要的是即时满足感。」":"\u201cWe are not just looking for satisfaction \u2014 we want an immediate payoff.\u201d",
+"「行为转变的第四条定律——让它令人愉悦——提高了下次重复这种行为的可能性。」":"\u201cThe fourth law of behavior change \u2014 make it satisfying \u2014 increases the odds that the behavior gets repeated.\u201d",
+"字段：环境（卡片底部整宽虚线框）":"Field: Environment (the full-width dashed box at the bottom of the card)",
+"怎么填：这个行为发生在哪个位置？那个位置该放什么、该拿走什么？写空间，不写心情。":"How: where does the behavior happen? What belongs there, what should be removed? Describe the space, not the mood.",
+"✓ 书桌左边腾空只放单词本和笔；手机在床尾充电":"\u2713 Clear the left side of the desk for the wordbook and a pen; charge the phone at the foot of the bed",
+"× 保持专注":"\u00d7 Stay focused",
+"「环境是塑造人类行为的无形之手。」":"\u201cEnvironment is the invisible hand that shapes human behavior.\u201d",
+"字段：难易度（三档）":"Field: Difficulty (three levels)",
+"怎么填：太难就降级（缩小动作），太简单就升级（加量或加时长），保持在「刚好」。":"How: too hard \u2014 scale down (smaller action); too easy \u2014 scale up (more volume or time). Stay at \u201cjust right\u201d.",
+"「金发女孩准则指出，人们在处理其能力可及的事务时积极性最高。」":"\u201cThe Goldilocks Rule states that humans experience peak motivation when working on tasks right at the edge of their current abilities.\u201d",
+"字段：周复盘（手填横线）":"Field: Weekly review (handwritten lines)",
+"怎么填：一句诊断，不写感想。只写「哪一栏没落地」，然后改那一栏。":"How: one diagnosis, no feelings. Write only \u201cwhich column didn\u2019t land\u201d \u2014 then fix that column.",
+"字段：替代动作":"Field: Replacement action",
+"怎么填：坏习惯空出来的时间/位置，必须有人占住，否则它自己会长回来。":"How: the time and space the bad habit frees up must be occupied, or it grows back on its own.",
+"✓ 22:40 上床，读 10 页书":"\u2713 In bed at 22:40, read 10 pages",
+"× 戒掉刷短视频（只说戒，没说做什么）":"\u00d7 Quit short videos (says only what to stop, not what to do instead)",
+"字段：① 让它隐形":"Field: \u2460 Make it invisible",
+"怎么填：写清「什么东西，从哪移到哪」。":"How: state clearly \u201cwhat object, moved from where to where\u201d.",
+"✓ 充电器从床头移到书桌":"\u2713 Move the charger from the bedside to the desk",
+"「逃避诱惑比抗拒诱惑容易。」":"\u201cIt is easier to avoid temptation than to resist it.\u201d",
+"字段：② 重述代价":"Field: \u2461 Restate the cost",
+"怎么填：把它的好处改写成代价，写在你会看见的地方（不是记在心里）。":"How: rewrite its benefit as a cost, posted where you will see it (not memorized).",
+"✓ 床头贴：刷 40 分钟 = 明早脑子是浆糊":"\u2713 Bedside note: 40 minutes of scrolling = a mushy brain tomorrow morning",
+"字段：③ 加阻力 / 一次性决策":"Field: \u2462 Add friction / one-time decision",
+"怎么填：多一步就少一半发生率。写具体的步骤数或一次性动作。":"How: one extra step halves how often it happens. Write the exact steps, or a one-time action.",
+"✓ 22:30 开专注模式，只放行家人来电；卸载最耗时的那个 APP":"\u2713 At 22:30 enable focus mode allowing only family calls; uninstall the most time-consuming app",
+"「承诺机制是指你当下的抉择左右着你未来的行动。」":"\u201cA commitment device is a choice you make in the present that controls your actions in the future.\u201d",
+"字段：④ 习惯契约（三行）":"Field: \u2462 Habit contract (three lines)",
+"怎么填：三条必须齐全——目标 / 违反后的具体代价 / 你和问责人的签字。代价要当场可执行，不要写\"以后请吃饭\"。":"How: all three lines complete \u2014 the goal / a concrete penalty for breaking it / your signature and an accountability partner\u2019s. The penalty must be enforceable on the spot \u2014 not \u201cdinner someday\u201d.",
+"「习惯契约是一种口头或书面的协议，你要借此声明自己对某一特定习惯的承诺，并约定假如你违背了诺言，将会接受相应的责罚。」":"\u201cA habit contract is a verbal or written agreement in which you state your commitment to a particular habit and the punishment that will occur if you don\u2019t follow through.\u201d",
+"为什么是四栏，不是三栏也不是五栏":"Why four columns \u2014 not three, not five",
+"四栏对应一次行为的四个环节：提示、渴求、反应、奖励。它们按固定顺序发生，任何一环断掉，行为就不会发生。所以卡片不是清单，是一条链。":"The four columns map to the four stages of a behavior: cue, craving, response, reward. They happen in a fixed order; break any link and the behavior doesn\u2019t happen. The card is not a checklist \u2014 it\u2019s a chain.",
+"「养成习惯的过程可以分为四个简单的步骤：提示、渴求、反应和奖励。」":"\u201cThe process of building a habit can be divided into four simple steps: cue, craving, response, and reward.\u201d",
+"「这个四步模式是每个习惯的核心支柱，你的大脑每次都以同样的顺序运行这些步骤。」":"\u201cThis four-step pattern is the backbone of every habit, and your brain runs the same sequence over and over.\u201d",
+"为什么这四栏的名字长这样":"Why the columns are named this way",
+"四栏的名字就是书里的四条定律，一字未改。养成用正向表述，戒除用反向表述。":"The column names are the book\u2019s four laws, word for word. Build cards use the positive form; quit cards the inverted form.",
+"「它们是：（1）让它显而易见；（2）让它有吸引力；（3）让它简便易行；（4）让它令人愉悦。」":"\u201cThey are: (1) make it obvious; (2) make it attractive; (3) make it easy; and (4) make it satisfying.\u201d",
+"为什么顺序不能调":"Why the order can\u2019t be swapped",
+"调换顺序等于打乱行为链。你可以调换措辞，但不能调换位置——①②③④ 永远是这个次序。":"Swapping the order scrambles the behavior chain. You may reword them, but never reposition them \u2014 \u2460\u2461\u2462\u2463 is always the sequence.",
+"为什么养成卡第一栏是身份，不是目标":"Why a build card starts with identity, not a goal",
+"目标有终点，身份没有。目标是「考过」，身份是「每天都碰英语的人」。前者达成即结束，后者可以一直投下去。":"Goals have an end; identity doesn\u2019t. A goal is \u201cpass the exam\u201d; an identity is \u201csomeone who touches English every day\u201d. The former ends when reached; the latter keeps paying off forever.",
+"「你不需要全体一致投票才能赢得选举；你只需要多数即可。」":"\u201cYou don\u2019t need a unanimous vote to win an election; you just need a majority.\u201d",
+"为什么强调重复，不强调坚持了多久":"Why it emphasizes repetition, not duration",
+"习惯的关键变量是重复次数，不是时长。一天做三次和一周做三次，在自动化程度上完全不同。":"The key variable is the number of repetitions, not the time spent. Three times a day and three times a week are worlds apart in automaticity.",
+"「习惯是重复了足够多的次数后而变得自动化的行为。」":"\u201cA habit is a behavior that has been repeated enough times to become automatic.\u201d",
+"「习惯是自我提高的复利。就像金钱借助于复利倍增一样，你的习惯的效果也会随着你不断地重复而倍增。」":"\u201cHabits are the compound interest of self-improvement. The same way that money multiplies through compound interest, the effects of your habits multiply as you repeat them.\u201d",
+"为什么打卡和设计分成两页":"Why designing and checking in live on two separate pages",
+"设计部分只写一次、几乎不变；记录每天都在长。两者混在一起，卡片会被记录撑成流水账，而流水账没人回看。分开之后，卡片永远是干净的模具。":"The design is written once and barely changes; the log grows every day. Mixing them turns the card into a running ledger nobody rereads. Kept apart, the card stays a clean mold forever.",
+"为什么规则是「不超两次」，不是「绝不中断」":"Why the rule is \u201cnever miss twice\u201d, not \u201cnever miss\u201d",
+"完美主义的代价是清零。断一次仍在复利里，断两次才是新习惯的开始——所以第二次是唯一真正的警戒线。":"Perfectionism\u2019s price is the reset. One miss stays inside the compounding curve; the second miss is the start of a new habit \u2014 which makes it the only real red line.",
+"「绝不错过两次。」":"\u201cNever miss twice.\u201d",
+"为什么连续天数只作显示，不作目标":"Why the streak is display only, never a target",
+"一旦数字变成目标，人就会为了数字去做卡片上没写的事，指标反而失真。":"Once the number becomes the target, people start doing things the card never asked for \u2014 and the metric stops telling the truth.",
+"延伸":"Bonus","为什么难度有三档":"Why difficulty has three levels",
+"太简单会厌倦，太难会放弃，中间那档才产生心流。难度所以要可调，而不是一次定死。":"Too easy bores you; too hard breaks you; only the middle produces flow. That\u2019s why difficulty is adjustable rather than fixed once and for all.",
+"学习进度控制台 · 使用教程":"Progress Console \u00b7 Tutorial",
+"这是与习惯卡并排的另一套系统：习惯卡管「每天要不要做」，进度台管「离终点还有多远」。有总量、有截止日的目标，适合放这里。":"A second system beside the habit cards: habit cards decide \u201cdo I do it today\u201d; the console tracks \u201chow far to the finish\u201d. Goals with a total volume and a deadline belong here.",
+"步骤一 · 建一个有终点的目标":"Step 1 \u00b7 Create a goal with an end",
+"名称、单位、总量、截止日，一样都不能少：总量是「完成」的判定线，截止日是推算进度的锚。配色、障碍与预案随时可改。":"Name, unit, total, deadline \u2014 none is optional: the total is the line that defines \u201cdone\u201d, the deadline anchors the projection. Color, obstacle and plan can be edited anytime.",
+"✓ 读完《人类简史》· 页 · 440 · 截止 12/23":"\u2713 Finish Sapiens \u00b7 pages \u00b7 440 \u00b7 due 12/23",
+"× 多读书（没有总量，永远算不出进度）":"\u00d7 Read more (no total, so progress can never be computed)",
+"步骤二 · 每天填数量，不只是打勾":"Step 2 \u00b7 Log an amount daily, not just a check",
+"打卡时填「本次完成量」，可选填用时；昨天漏了，把日期选到昨天补记，记录会带上「补」标。连续天数自带休息日机制：本周第一个漏打日自动算作休息日，连续不断——再漏才会断。":"When checking in, enter the amount completed and optionally the time spent. Missed yesterday? Pick yesterday\u2019s date to backfill \u2014 the entry gets a \u201cbackfill\u201d tag. Streaks have a built-in rest-day rule: the first missed day of the week counts as the rest day and the streak survives; miss again and it breaks.",
+"步骤三 · 进度看板回答三个问题":"Step 3 \u00b7 The board answers three questions",
+"每一张卡回答：完成率多少、连续几天、预计哪天完成（按近 7 天速度推算，提前还是拖后一目了然）。逾期与临近截止的目标会滚进「今日打卡」的「今天要处理」置顶提醒。":"Each card answers: how complete, how long the streak, and when it should finish (projected from the last 7 days \u2014 ahead or behind at a glance). Overdue and near-deadline goals roll into the \u201cNeeds attention today\u201d reminder at the top of Today.",
+"看板下方还有近 14 天各目标投入堆叠图，以及近 35 天打卡热力。":"Below the board: a 14-day stacked chart of time invested per goal, and a 35-day check-in heatmap.",
+"步骤四 · 每周写四行复盘":"Step 4 \u00b7 Write a four-line weekly review",
+"周报复盘只写四行：保持 / 问题 / 尝试 / 下周预案。上周数据自动带出做对比；写完点「生成周报」，一键复制去分享。":"The weekly review is four lines: Keep / Problem / Try / Next-week plan. Last week\u2019s numbers are carried in for comparison; when done, tap Generate report and copy it in one tap.",
+"步骤五 · 数据随身带走":"Step 5 \u00b7 Take your data with you",
+"「我的」里可以导出 JSON 备份、导入还原；清空全部数据需要输入「清空」二次确认。迁移到新设备：旧页面导出 → 新页面导入。":"Under \u201cMe\u201d you can export a JSON backup and import to restore; clearing all data requires typing a confirmation word. Moving devices: export on the old one \u2192 import on the new one.",
+/* 海报 / 文件名（仅代码显式调用 t() 时命中） */
+"＋ 养成":"＋ BUILD","－ 戒除":"－ QUIT",
+"习惯卡 · ＋养成":"Habit Cards \u00b7 Build","习惯卡 · －戒除":"Habit Cards \u00b7 Quit",
+"习惯卡_":"HabitCards_","习惯卡备份_":"HabitCards_backup_",
+"无":"None"," · 云端 ":" · cloud ","密码至少 6 位":"Password must be at least 6 characters",
+"这一周哪条定律没起作用？写下观察，和下周的一个小改动。":"Which law didn\u2019t work this week? Write the observation \u2014 and one small change for next week."
+};
+
+/* ---------- 数值/模式规则（整句正则 → 英文；按序链式应用） ---------- */
+var RULES = [
+  [/^还有 (\d+) 张没打卡$/, "$1 more to check in"],
+  [/^连续 (\d+) 天 · 本周 (\d+)\/7$/, "Streak: $1 days \u00b7 this week $2/7"],
+  [/^守住 (\d+) 天 · 本周 (\d+)\/7$/, "Held: $1 days \u00b7 this week $2/7"],
+  [/^本周 (\d+) 天全守住。连续数只是显示，不是目标。$/, "All $1 days held this week. The streak is display only \u2014 not a target."],
+  [/^本周漏了 1 次。继续数，不归零——但下一次别再漏。$/, "Missed once this week. The count continues \u2014 no reset. But don\u2019t miss again."],
+  [/^本周已漏 (\d+) 次。不超两次——现在该改卡了，不是骂自己的时候。$/, "Missed $1 times this week. Two is the limit \u2014 time to fix the card, not to blame yourself."],
+  [/^进行中 (\d+) 个目标$/, "$1 in progress"],
+  [/^累计记录 (\d+) 条$/, "$1 records in total"],
+  [/^已逾期 (\d+) 天$/, "Overdue by $1 days"],
+  [/^目标已达成，共投入 (\d+)/, "Goal achieved \u2014 $1 "],
+  [/^ \/ (\d+) ([\u4e00-\u9fa5]{1,3}) · 截止 ([\d\/]+)( · )?$/, function (all, n, u, d, tail) { return " / " + n + " " + (TR[u] || u) + " \u00b7 due " + d + (tail || ""); }],
+  [/^已创建目标「(.+)」$/, "Created goal \u201c$1\u201d"],
+  [/^已删除「(.+)」$/, "Deleted \u201c$1\u201d"],
+  [/^删除「(.+)」及其全部记录$/, "Delete \u201c$1\u201d and all of its records"],
+  [/^删除「(.+)」？相关打卡记录与手记会一并删除。$/, "Delete \u201c$1\u201d? Its check-in history and notes will be removed too."],
+  [/^打卡：(.+)$/, "Check in: $1"],
+  [/^(\d{4}-\d{2}-\d{2}) 已打卡$/, "$1 \u2014 checked in"],
+  [/^主题色 (.+)$/, function(all, g1){ return "Theme color: " + (TR[g1] || g1); }],
+  [/^今天已 \+(\d+)$/, "+$1 today"],
+  [/^(\d{1,2})月(\d{1,2})日$/, "$1/$2"],
+  [/^连续 (\d+) 天$/, "$1-day streak"],
+  [/^(\d+) 天$/, "$1 days"],
+  [/【学习周报】/g, "[Weekly Report]"],
+  [/保持：/g, "Keep: "],
+  [/问题：/g, "Problems: "],
+  [/尝试：/g, "Try: "],
+  [/下周预案：/g, "Next week: "],
+  [/本周总投入：/g, "Total invested: "],
+  [/共 (\d+) 次、?(\d+) 分钟/g, "$1 check-ins, $2 min"],
+  [/（较上周 ([+\-\u2212]?\d+%?)）/g, "(vs last week $1)"],
+  [/（上周 ([+\-\u2212]?\d+%?)）/g, "(last week $1)"],
+  [/合计投入/g, "Total invested: "],
+  [/^将删除全部目标与打卡记录[\s\S]*$/, "This deletes ALL goals and check-ins, irreversibly.\nType 清空 (clear) to confirm:"],
+  [/^· 最长连续 (\d+) 天$/, "· best streak $1 days"],
+  [/^· 最长守住 (\d+) 天$/, "· best hold $1 days"],
+  [/^· 累计 (\d+) 条$/, "· $1 records in total"],
+  [/^(\d+) 张$/, "$1 cards"],
+  [/^(\d+) 条$/, "$1 records"],
+  [/^本次完成（(.+)）$/, function (all, u) { return "Completed this (" + (TR[u] || u) + ")"; }],
+  [/^ ([\u4e00-\u9fa5]{1,3})。$/, function (all, u) { return " " + (TR[u] || u) + "."; }],
+  [/^编辑目标 (.+)$/, "Edit goal: $1"],
+  [/^删除目标 (.+)$/, "Delete goal: $1"],
+  [/ · 习惯卡$/, " \u00b7 Habit Cards"],
+  [/^ \/ (\d+) ([\u4e00-\u9fa5]{1,3}) · 截止 ([\d\/]+)( · 今日建议)?( · )?$/, function (all, n, u, d, sug, tail) { return " / " + n + " " + (TR[u] || u) + " \u00b7 due " + d + (sug ? " \u00b7 suggested" : "") + (tail || ""); }]
+];
+/* 断句碎片字典（插值拆出的节点） */
+var FRAG = {
+  "还有 ":"Only "," 张没打卡":" to check in",
+  "连续 ":"Streak: ","守住 ":"Held: "," 天":" days","· 本周 ":" \u00b7 this week ",
+  "· 最长连续 ":"\u00b7 best streak ","· 最长守住 ":"\u00b7 best hold ",
+  "· 累计 ":"\u00b7 total "," 条":" records"," 个目标":" goals",
+  "进行中 ":"In progress "," · 截止 ":" \u00b7 due "," · 今日建议 ":" \u00b7 suggested ","本次完成（":"Completed this (",
+  "上周 +":"last week +","｜上周 +":" | last week +","（较上周":"(vs last week ",
+  "（上周 ":"(last week ","（本周）":"(this week)","少":"less ","多":"more ",
+  "天，且昨天没学":" days, and nothing done yesterday","天（累计":" days (total ",
+  "目标「":"goal \u201c","」达成，恭喜！":"\u201d achieved \u2014 congratulations!",
+  "，可以继续追加。":", and you can keep adding."
+};
+
+function hasCJK(s){ return /[\u4e00-\u9fa5]/.test(s); }
+function applyRules(s){
+  for(var i=0;i<RULES.length;i++){
+    var r=RULES[i];
+    if(r[0].test(s)) s=s.replace(r[0],r[1]);
+  }
+  return s;
+}
+function t(s){
+  if(typeof s!=="string"||!hasCJK(s)||lang()!=="en")return s;
+  if(Object.prototype.hasOwnProperty.call(TR,s))return TR[s];
+  var st=s.replace(/^\s+|\s+$/g,"");
+  if(st&&Object.prototype.hasOwnProperty.call(TR,st)){
+    var lead=s.slice(0,s.indexOf(st));
+    var trail=s.slice(s.indexOf(st)+st.length);
+    return lead+TR[st]+trail;
+  }
+  if(Object.prototype.hasOwnProperty.call(FRAG,s))return FRAG[s];
+  s=applyRules(s);
+  return s;
+}
+
+/* ---------- 文本节点 + 属性遍历 ---------- */
+var applying=false;
+function walk(root){
+  if(applying||lang()!=="en"||!root)return;
+  applying=true;
+  try{
+    var tw=DOC.createTreeWalker(root,NodeFilter.SHOW_TEXT,null),n;
+    while((n=tw.nextNode())){
+      var v=n.nodeValue;
+      if(v&&hasCJK(v)){
+        var nv=t(v);
+        if(nv!==v)n.nodeValue=nv;
+      }
+    }
+    if(root.querySelectorAll){
+      var all=root.querySelectorAll("*");
+      for(var i=0;i<all.length;i++){
+        var el=all[i];
+        for(var j=0;j<3;j++){
+          var a=["placeholder","title","aria-label"][j];
+          var av=el.getAttribute(a);
+          if(av&&hasCJK(av)){
+            var an=t(av);
+            if(an!==av)el.setAttribute(a,an);
+          }
+        }
+      }
+    }
+  }finally{applying=false;}
+}
+function pass(root){
+  if(applying||lang()!=="en")return;
+  walk(root||DOC.body);
+  ensureShadow();
+}
+
+/* ---------- title 与原生弹窗的翻译挂钩 ---------- */
+(function(){
+  var d=Object.getOwnPropertyDescriptor(Document.prototype,"title");
+  if(d&&d.set)Object.defineProperty(document,"title",{
+    get:function(){return d.get.call(document);},
+    set:function(v){d.set.call(document,typeof v==="string"?t(v):v);}
+  });
+  var _cf=window.confirm,_pr=window.prompt,_al=window.alert;
+  window.confirm=function(m){return _cf.call(window,typeof m==="string"?t(m):m);};
+  window.prompt=function(m,d2){return _pr.call(window,typeof m==="string"?t(m):m,d2);};
+  window.alert=function(m){return _al.call(window,typeof m==="string"?t(m):m);};
+})();
+
+/* ---------- 观察者：渲染后自动翻译 ---------- */
+var shadowObs=null;
+function ensureShadow(){
+  if(shadowObs||lang()!=="en")return;
+  var host=DOC.getElementById("goalsHost");
+  if(host&&host.shadowRoot){
+    shadowObs=new MutationObserver(function(){
+      if(applying)return;
+      walk(host.shadowRoot);
+      /* 二次补扫：渲染后紧跟的异步改写（如 select/进度条初始化）会在首轮遍历窗口内落地 */
+      setTimeout(function(){ if(!applying) walk(host.shadowRoot); },120);
+    });
+    shadowObs.observe(host.shadowRoot,{childList:true,subtree:true,characterData:true});
+    walk(host.shadowRoot);
+    setTimeout(function(){ if(!applying) walk(host.shadowRoot); },120);
+  }
+}
+var obs=new MutationObserver(function(){ if(!applying) pass(); });
+function boot(){
+  DOC.documentElement.lang = lang()==="en"?"en":"zh-CN";
+  obs.observe(DOC.body,{childList:true,subtree:true,characterData:true});
+  pass();
+}
+if(DOC.readyState==="loading")DOC.addEventListener("DOMContentLoaded",boot);
+else boot();
+function toggle(){
+  setLang(lang()==="en"?"zh":"en");
+  DOC.documentElement.lang = lang()==="en"?"en":"zh-CN";
+  if(shadowObs){shadowObs.disconnect();shadowObs=null;}
+  if(typeof renderCurrent==="function")renderCurrent(false);
+  setTimeout(function(){ pass(); },80);
+}
+return { t:t, lang:lang, setLang:setLang, toggle:toggle, pass:pass };
+})();
+</script>
+<script>
 /* ================= 云同步（登录 + 快照式同步适配器） ================= */
 var SYNC = (function(){
   "use strict";
@@ -2265,6 +2749,7 @@ function topbarIO(){
     '<button class="io-btn" id="btnExport">导出</button>'+
     '<button class="io-btn" id="btnImport">导入</button>'+
     '<button class="io-btn" id="btnSync">云同步</button>'+
+    '<button class="io-btn" id="btnLang">'+(window.I18N&&I18N.lang()==='en'?'中文':'EN')+'</button>'+
     '<input type="file" id="fileImport" accept=".json,application/json" hidden>'+
   '</nav>';
 }
@@ -2274,6 +2759,7 @@ function bindIO(){
   document.getElementById('btnExport').addEventListener('click',exportData);
   document.getElementById('btnImport').addEventListener('click',()=>{document.getElementById('fileImport').click();});
   document.getElementById('btnSync').addEventListener('click',()=>SYNC.openPanel());
+  document.getElementById('btnLang').addEventListener('click',()=>I18N.toggle());
   document.getElementById('fileImport').addEventListener('change',importData);
 }
 function renderCover(){
@@ -3135,8 +3621,8 @@ function buildLayout(c,theme,themeDeep,m){
   };
   const isQuit=c.type==='quit';
   const L={W,pad,cardX,cardW,cx,cw,colW,colGap,F,isQuit,theme,themeDeep,
-    badgeTxt:isQuit?'－ 戒除':'＋ 养成',
-    footTxt:isQuit?'习惯卡 · －戒除':'习惯卡 · ＋养成',
+    badgeTxt:isQuit?I18N.t('－ 戒除'):I18N.t('＋ 养成'),
+    footTxt:isQuit?I18N.t('习惯卡 · －戒除'):I18N.t('习惯卡 · ＋养成'),
     date:iso(new Date())};
   let y=pad+inner;
   /* 顶部行：徽标 + 序号 */
@@ -3148,14 +3634,14 @@ function buildLayout(c,theme,themeDeep,m){
   L.num={txt:numTxt,w:m.measureText(numTxt).width,baseY:y+58,cy:y+25};
   y+=72;
   /* 标题：最多 3 行 */
-  const tLines=pLines(m,c.title||'未命名习惯',F.name,cw,3);
+  const tLines=pLines(m,c.title||I18N.t('未命名习惯'),F.name,cw,3);
   L.title={lines:tLines,top:y+8,lh:62};
   y+=8+tLines.length*62;
   /* 身份 / 替代动作 */
   y+=18;
   const idLines=c.identity?pLines(m,c.identity,F.idTxt,cw-32,2):[];
   L.id={y,h:16+15+(idLines.length?idLines.length*32+4:0)+12,lines:idLines,
-        lbl:isQuit?'替代动作':'身份'};
+        lbl:isQuit?I18N.t('替代动作'):I18N.t('身份')};
   y+=L.id.h;
   /* 四栏：2×2，同行等高；未填写的行整行不画 */
   y+=20;
@@ -3290,7 +3776,7 @@ function exportPoster(c){
     rrect(ctx,cx,L.env.y,cw,L.env.h,16);ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle=POSTER.ink3;ctx.font=F.small;
-    ctx.fillText('环境',cx+16,L.env.y+25);
+    ctx.fillText(I18N.t('环境'),cx+16,L.env.y+25);
     ctx.fillStyle=POSTER.ink2;ctx.font=F.env;
     L.env.lines.forEach((ln,i)=>ctx.fillText(ln,cx+16,L.env.y+47+26*i));
   }
@@ -3301,7 +3787,7 @@ function exportPoster(c){
     ctx.fillStyle=L.theme;
     ctx.fillRect(cx,L.rev.y+10,2,L.rev.h-20);
     ctx.fillStyle=POSTER.ink3;ctx.font=F.small;
-    ctx.fillText('本周复盘',cx+16,L.rev.y+24);
+    ctx.fillText(I18N.t('本周复盘'),cx+16,L.rev.y+24);
     ctx.fillStyle=POSTER.ink2;ctx.font=F.rev;
     L.rev.lines.forEach((ln,i)=>ctx.fillText(ln,cx+16,L.rev.y+45+26*i));
   }
@@ -3331,7 +3817,7 @@ function exportData(){
   const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='习惯卡备份_'+iso(new Date())+'.json';
+  a.download=I18N.t('习惯卡备份_')+iso(new Date())+'.json';
   document.body.appendChild(a);
   a.click();
   a.remove();

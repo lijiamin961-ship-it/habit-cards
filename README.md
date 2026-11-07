@@ -4,10 +4,11 @@
 
 A single-file habit-tracking web app built around the four laws of *Atomic Habits* (cue, craving, response, reward) — with a built-in learning progress console, installable as a PWA, and optional email-based cloud sync. Self-hosts on the free tier of Cloudflare Pages + D1.
 
-**Live demo: https://habit-cards.pages.dev**（UI 语言目前为中文 / UI is currently in Chinese）
+**Live demo: https://habit-cards.pages.dev**
 
 ## Features
 
+- **Bilingual UI (中文 / English)** — a one-tap 中/EN switch in the top bar; the preference is remembered per device and first-time visitors get the language of their browser. The whole UI, guide and dialogs are covered; user data stays as entered.
 - **Single-file app** — the entire frontend lives in one `index.html` (habit cards + learning progress console + user guide). No framework, no npm frontend dependencies, no external requests.
 - **Three-level structure** — cover with three entries (Build / Quit / Progress) → zone list → card detail (four-laws mini-cards + check-in panel + in-place quick check-in animations).
 - **Learning progress console** — track goals with a total volume and deadline: completion rate / streak / estimated finish date / weekly review / check-in heatmap.
