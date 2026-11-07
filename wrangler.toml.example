@@ -1,0 +1,11 @@
+name = "habit-cards"
+compatibility_date = "2026-10-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "habit-cards-db"
+# 部署前替换为你自己的 D1 database_id：
+#   npx wrangler d1 create habit-cards-db
+# 然后把输出的 database_id 填在下面，并复制本文件为 wrangler.toml
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"

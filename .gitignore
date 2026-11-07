@@ -1,0 +1,24 @@
+# 构建产物（node tools/build.js 生成）
+dist/
+
+# 本地运行时状态与工具数据
+.wrangler/
+.mimosa/
+node_modules/
+
+# 个人数据与导出文件
+习惯卡备份_*.json
+习惯卡_*.png
+习惯卡备份/
+
+# 本会话工具状态
+.zcode/
+
+# 内部协作文件
+交接提示词.md
+
+# 内部构建工具：依赖本机路径与外部源文件快照，不随仓库分发
+tools/integrate.js
+
+# Cloudflare 配置含个人 D1 database_id —— 仓库提供 wrangler.toml.example 模板
+wrangler.toml
