@@ -94,12 +94,17 @@ button{font-family:inherit;color:inherit}
 }
 .io-btn:hover{color:var(--ink-2)}
 .io-btn:focus-visible{outline:2px solid rgba(var(--ink-rgb),.5);outline-offset:3px;border-radius:2px}
+.io-s{display:none}
 /* 移动端顶栏：去掉品牌标题（省出屏幕给内容），功能按钮等距铺满一行、加大触点 */
 @media (max-width:599px){
   .top{padding:16px 16px 0}
   .brand,.brand-sub{display:none}
   .io-btns{flex:1;justify-content:space-between;gap:0}
   .io-btn{font-size:12px;padding:8px 4px;letter-spacing:.05em;white-space:nowrap}
+  /* EN 档移动端：按钮缩减为符号（完整语义在 aria-label），防英文标签挤压 */
+  html[lang="en"] .io-t{display:none}
+  html[lang="en"] .io-s{display:inline;font-size:15px;line-height:1}
+  html[lang="en"] .io-btn{padding:8px 10px}
   .dbar-in{padding:10px 14px 8px}
   .dbar-brand{display:none}
   .dbar-in .io-btns{gap:14px}
@@ -2743,12 +2748,14 @@ const ZONES={
 };
 function zoneCards(type){return state.cards.filter(c=>c.type===type);}
 function topbarIO(){
+  /* 双标签结构：.io-t 全称（桌面/中文档），.io-s 符号（移动端英文档防挤压）；
+     语义走按钮的 aria-label（I18N 会翻译） */
   return '<nav class="io-btns">'+
-    '<button class="io-btn" id="btnTheme">主题</button>'+
-    '<button class="io-btn" id="btnGuide">说明</button>'+
-    '<button class="io-btn" id="btnExport">导出</button>'+
-    '<button class="io-btn" id="btnImport">导入</button>'+
-    '<button class="io-btn" id="btnSync">云同步</button>'+
+    '<button class="io-btn" id="btnTheme" aria-label="主题"><span class="io-t">主题</span><span class="io-s" aria-hidden="true">◐</span></button>'+
+    '<button class="io-btn" id="btnGuide" aria-label="说明"><span class="io-t">说明</span><span class="io-s" aria-hidden="true">?</span></button>'+
+    '<button class="io-btn" id="btnExport" aria-label="导出"><span class="io-t">导出</span><span class="io-s" aria-hidden="true">⤓</span></button>'+
+    '<button class="io-btn" id="btnImport" aria-label="导入"><span class="io-t">导入</span><span class="io-s" aria-hidden="true">⤒</span></button>'+
+    '<button class="io-btn" id="btnSync" aria-label="云同步"><span class="io-t">云同步</span><span class="io-s" aria-hidden="true">↻</span></button>'+
     '<button class="io-btn" id="btnLang">'+(window.I18N&&I18N.lang()==='en'?'中文':'EN')+'</button>'+
     '<input type="file" id="fileImport" accept=".json,application/json" hidden>'+
   '</nav>';
@@ -3864,9 +3871,10 @@ function applyThemeMode(){
   const dk=v==='dark'||(v==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.dataset.dk=dk?'1':'';
   const mc=document.querySelector('meta[name="theme-color"]');
-  if(mc)mc.content=dk?'#141519':'#f6f4ef';
+  if(mc)mc.content=dk?'#0f1013':'#f6f4ef';
   const bt=document.getElementById('btnTheme');
-  if(bt)bt.textContent='主题·'+({auto:'自动',light:'日间',dark:'夜间'}[v]||'');
+  const btT=bt&&bt.querySelector('.io-t');
+  if(btT)btT.textContent='主题·'+({auto:'自动',light:'日间',dark:'夜间'}[v]||'');
   const host=document.getElementById('goalsHost');
   if(host)host.dataset.dk=dk?'1':'';
 }
